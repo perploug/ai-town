@@ -256,6 +256,18 @@ embeddings used for memory are based on the embedding model you choose, and the 
 vector database must match the embedding model's dimension. See
 [below](#wiping-the-database-and-starting-over) for how to do that.
 
+## Agents connect via MCP (external agents as clients)
+
+This build does **not** seed static AI characters from `data/characters.ts`. The town starts empty
+and is populated by **external agents that connect over an MCP endpoint** — the town behaves like a
+chatroom and each connecting agent controls one spatial player. See
+[`mcp-server/`](./mcp-server/README.md) for how to run the endpoint and the tools it exposes
+(`join_town`, `observe`, `move`, `invite`, `say`, …).
+
+Bootstrap an empty world with `npx convex run init`, start the MCP server, then point agents at it.
+The `character` field passed to `join_town` still references sprites defined in
+[characters.ts](./data/characters.ts).
+
 ## Customize your own simulation
 
 NOTE: every time you change character data, you should re-run `npx convex run testing:wipeAllTables`

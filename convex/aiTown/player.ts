@@ -8,6 +8,8 @@ import {
   HUMAN_IDLE_TOO_LONG,
   MAX_HUMAN_PLAYERS,
   MAX_PATHFINDS_PER_STEP,
+  EXTERNAL_AGENT_TOKEN_PREFIX,
+  MAX_EXTERNAL_AGENTS,
 } from '../constants';
 import { pointsEqual, pathPosition } from '../util/geometry';
 import { Game } from './game';
@@ -174,16 +176,26 @@ export class Player {
     tokenIdentifier?: string,
   ) {
     if (tokenIdentifier) {
+      const isExternalAgent = tokenIdentifier.startsWith(EXTERNAL_AGENT_TOKEN_PREFIX);
       let numHumans = 0;
+      let numExternalAgents = 0;
       for (const player of game.world.players.values()) {
         if (player.human) {
-          numHumans++;
+          if (player.human.startsWith(EXTERNAL_AGENT_TOKEN_PREFIX)) {
+            numExternalAgents++;
+          } else {
+            numHumans++;
+          }
         }
         if (player.human === tokenIdentifier) {
           throw new Error(`You are already in this game!`);
         }
       }
-      if (numHumans >= MAX_HUMAN_PLAYERS) {
+      if (isExternalAgent) {
+        if (numExternalAgents >= MAX_EXTERNAL_AGENTS) {
+          throw new Error(`Only ${MAX_EXTERNAL_AGENTS} external agents allowed at once.`);
+        }
+      } else if (numHumans >= MAX_HUMAN_PLAYERS) {
         throw new Error(`Only ${MAX_HUMAN_PLAYERS} human players allowed at once.`);
       }
     }
@@ -272,7 +284,30 @@ export const playerInputs = {
       tokenIdentifier: v.optional(v.string()),
     },
     handler: (game, now, args) => {
-      Player.join(game, now, args.name, args.character, args.description, args.tokenIdentifier);
+      const playerId = Player.join(
+        game,
+        now,
+        args.name,
+        args.character,
+        args.description,
+        args.tokenIdentifier,
+      );
+      // Returning the id lets externally-driven clients (browser humans and MCP
+      // agents) learn the player they just created.
+      return { playerId };
+    },
+  }),
+  // Bump `lastInput` so an externally-driven player isn't reaped as idle while
+  // its client is still connected. MCP agents call this on a heartbeat.
+  keepAlive: inputHandler({
+    args: { playerId },
+    handler: (game, now, args) => {
+      const id = parseGameId('players', args.playerId);
+      const player = game.world.players.get(id);
+      if (!player) {
+        throw new Error(`Invalid player ID ${id}`);
+      }
+      player.lastInput = now;
       return null;
     },
   }),

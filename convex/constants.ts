@@ -18,6 +18,12 @@ export const COLLISION_THRESHOLD = 0.75;
 // How many human players can be in a world at once.
 export const MAX_HUMAN_PLAYERS = 8;
 
+// External agents that connect over MCP join through the human-player path but
+// are tracked separately so a town can host many more of them than browser
+// humans. Their tokenIdentifier is prefixed with `EXTERNAL_AGENT_TOKEN_PREFIX`.
+export const EXTERNAL_AGENT_TOKEN_PREFIX = 'mcp-agent:';
+export const MAX_EXTERNAL_AGENTS = 100;
+
 // Don't talk to anyone for 15s after having a conversation.
 export const CONVERSATION_COOLDOWN = 15000;
 

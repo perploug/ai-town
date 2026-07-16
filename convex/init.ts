@@ -1,19 +1,21 @@
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
-import { DatabaseReader, MutationCtx, mutation } from './_generated/server';
-import { Descriptions } from '../data/characters';
+import { MutationCtx, mutation } from './_generated/server';
 import * as map from '../data/gentle';
-import { insertInput } from './aiTown/insertInput';
-import { Id } from './_generated/dataModel';
 import { createEngine } from './aiTown/main';
 import { ENGINE_ACTION_DURATION } from './constants';
 import { detectMismatchedLLMProvider } from './util/llm';
 
+// Agents are no longer seeded statically from `data/characters.ts`. The town
+// starts empty and is populated by external agents that connect over the MCP
+// endpoint (see `mcp-server/`). This mutation just ensures a running, empty
+// default world exists.
 const init = mutation({
   args: {
+    // Kept for backwards-compatibility with tooling/docs that pass it; ignored.
     numAgents: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx) => {
     detectMismatchedLLMProvider();
     const { worldStatus, engine } = await getOrCreateDefaultWorld(ctx);
     if (worldStatus.status !== 'running') {
@@ -22,19 +24,9 @@ const init = mutation({
       );
       return;
     }
-    const shouldCreate = await shouldCreateAgents(
-      ctx.db,
-      worldStatus.worldId,
-      worldStatus.engineId,
+    console.log(
+      `Default world ${worldStatus.worldId} is running. Agents join via the MCP endpoint.`,
     );
-    if (shouldCreate) {
-      const toCreate = args.numAgents !== undefined ? args.numAgents : Descriptions.length;
-      for (let i = 0; i < toCreate; i++) {
-        await insertInput(ctx, worldStatus.worldId, 'createAgent', {
-          descriptionIndex: i % Descriptions.length,
-        });
-      }
-    }
   },
 });
 export default init;
@@ -85,29 +77,4 @@ async function getOrCreateDefaultWorld(ctx: MutationCtx) {
     maxDuration: ENGINE_ACTION_DURATION,
   });
   return { worldStatus, engine };
-}
-
-async function shouldCreateAgents(
-  db: DatabaseReader,
-  worldId: Id<'worlds'>,
-  engineId: Id<'engines'>,
-) {
-  const world = await db.get(worldId);
-  if (!world) {
-    throw new Error(`Invalid world ID: ${worldId}`);
-  }
-  if (world.agents.length > 0) {
-    return false;
-  }
-  const unactionedJoinInputs = await db
-    .query('inputs')
-    .withIndex('byInputNumber', (q) => q.eq('engineId', engineId))
-    .order('asc')
-    .filter((q) => q.eq(q.field('name'), 'createAgent'))
-    .filter((q) => q.eq(q.field('returnValue'), undefined))
-    .first();
-  if (unactionedJoinInputs) {
-    return false;
-  }
-  return true;
 }
