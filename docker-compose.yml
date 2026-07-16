@@ -45,6 +45,19 @@ services:
       backend:
         condition: service_healthy
 
+  mcp:
+    build: ./mcp-server
+    ports:
+      - '${MCP_PORT:-3939}:3939'
+    environment:
+      - CONVEX_URL=http://backend:${PORT:-3210}
+      - PORT=3939
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - ai-town-network
+
 volumes:
   data:
 
